@@ -21,6 +21,10 @@ local use = require('packer').use
 require('packer').startup(function()
   use 'wbthomason/packer.nvim' -- Package manager
   use 'tpope/vim-fugitive' -- Git commands in nvim
+  use 'nixprime/cpsm'
+  use 'romgrk/fzy-lua-native'
+  use 'ryanoasis/vim-devicons'
+  use 'gelguy/wilder.nvim'
   use 'tpope/vim-rhubarb' -- Fugitive-companion to interact with github
   use 'tpope/vim-commentary' -- "gc" to comment visual regions/lines
   use 'tpope/vim-surround'
@@ -75,6 +79,20 @@ vim.o.breakindent = true
 
 --Save undo history
 vim.cmd [[set undofile]]
+
+vim.cmd [[
+call wilder#enable_cmdline_enter()
+set wildcharm=<Tab>
+cmap <expr> <Tab> wilder#in_context() ? wilder#next() : "\<Tab>"
+cmap <expr> <S-Tab> wilder#in_context() ? wilder#previous() : "\<S-Tab>"
+call wilder#set_option('modes', ['/', '?', ':'])
+
+call wilder#set_option('pipeline', [ wilder#branch( wilder#python_file_finder_pipeline({ 'file_command': {_, arg -> stridx(arg, '.') != -1 ? ['fd', '-tf', '-H'] : ['fd', '-tf']}, 'dir_command': ['fd', '-td'], 'filters': ['cpsm_filter'], 'cache_timestamp': {-> 1}, }), wilder#cmdline_pipeline({ 'fuzzy': 1, 'fuzzy_filter': wilder#python_cpsm_filter(), 'set_pcre2_pattern': 0, }), wilder#python_search_pipeline({ 'pattern': wilder#python_fuzzy_pattern({ 'start_at_boundary': 0, }), }),), ])
+
+let highlighters = [ wilder#pcre2_highlighter(), wilder#lua_fzy_highlighter(), ]
+
+call wilder#set_option('renderer', wilder#renderer_mux({ ':': wilder#popupmenu_renderer({ 'highlighter': highlighters, 'left': [ ], 'right': [ ' ', wilder#popupmenu_scrollbar(), ], }), '/': wilder#wildmenu_renderer({ 'highlighter': highlighters, }), }))
+]]
 
 --Case insensitive searching UNLESS /C or capital in search
 vim.o.ignorecase = true
@@ -221,17 +239,17 @@ local capabilities = vim.lsp.protocol.make_client_capabilities()
 capabilities.textDocument.completion.completionItem.snippetSupport = true
 
 -- Enable the following language servers
--- local servers = { 'clangd', 'rust_analyzer', 'pyright', 'tsserver' }
--- for _, lsp in ipairs(servers) do
---   nvim_lsp[lsp].setup {
---     on_attach = (function(x, b)
---       -- lua doesn't support codelens so we add it manually here
---       vim.api.nvim_command [[autocmd CursorHold,CursorHoldI,InsertLeave <buffer> lua vim.lsp.codelens.refresh()]]
---       on_attach(x, b)
---       end),
---     capabilities = capabilities,
---   }
--- end
+local servers = { 'clangd', 'rust_analyzer', 'pyright', 'tsserver' }
+for _, lsp in ipairs(servers) do
+  nvim_lsp[lsp].setup {
+    on_attach = (function(x, b)
+      -- lua doesn't support codelens so we add it manually here
+      vim.api.nvim_command [[autocmd CursorHold,CursorHoldI,InsertLeave <buffer> lua vim.lsp.codelens.refresh()]]
+      on_attach(x, b)
+      end),
+    capabilities = capabilities,
+  }
+end
 
 require('lspconfig').hls.setup {
   cmd = { "haskell-language-server-wrapper", "--lsp", "--logfile", "/tmp/nvim-lsp-hls.log" },
